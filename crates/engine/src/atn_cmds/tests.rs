@@ -622,7 +622,7 @@ fn remaining_events_import_in_their_photoshop_shapes() {
     let moved = desc("null")
         .with("null", target_ref("Lyr "))
         .with("FTcs", enm("QCSt", "Qcsa"))
-        .with("Ofst", D::Descriptor(desc("Ofst").with("Hrzn", px(-57.4)).with("Vrtc", px(12.0))))
+        .with("Ofst", D::Descriptor(desc("Ofst").with("Hrzn", px(-57.0)).with("Vrtc", px(12.0))))
         .with("Intr", enm("Intp", "Bcbc"));
     let scaled = desc("null")
         .with("null", target_ref("Lyr "))
@@ -1004,4 +1004,25 @@ fn remove_white_clears_the_targeted_layer_not_the_converted_background() {
     let bottom = st.doc.layers.first().unwrap();
     assert!(!st.doc.is_background(bottom.id), "the Background became a normal layer");
     assert!(bottom.surface().unwrap().sample_channel(2, 2, 1) > 0.99, "and kept its pixels");
+}
+
+/// A translation-only Free Transform with a fractional offset must not collapse into an
+/// integer `layer.translate`: the sub-pixel placement and interpolation have to survive.
+#[test]
+fn fractional_translation_only_transform_keeps_offset_and_interpolation() {
+    let params = json!({"dx": 0.5, "dy": 0, "interpolation": "bilinear"});
+    let d = transform_to("edit.transform", &params).unwrap();
+    let file = AtnFile {
+        name: UnicodeString::new_nul("Frac"),
+        expanded: false,
+        actions: vec![AtnAction { name: UnicodeString::new_nul("A"), items: vec![item("transform", "Transform", Some(d))], ..Default::default() }],
+        warnings: vec![],
+    };
+    let imp = import(&atn::write(&file).unwrap()).unwrap();
+    assert!(imp.unsupported.is_empty());
+    let steps = &imp.actions[0].steps;
+    assert_eq!(steps.len(), 1);
+    assert_eq!(steps[0].0, "edit.transform");
+    assert_eq!(steps[0].1.get("dx").and_then(Value::as_f64), Some(0.5));
+    assert_eq!(steps[0].1.get("interpolation"), Some(&json!("bilinear")));
 }
